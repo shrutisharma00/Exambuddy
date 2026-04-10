@@ -31,7 +31,7 @@ if not GROQ_API_KEY:
 client = AsyncGroq(api_key=GROQ_API_KEY)
 GROQ_MODEL = "llama-3.1-8b-instant"
 
-USERS_FILE = "users.json"
+USERS_FILE = os.path.join(os.path.dirname(__file__), "users.json")
 
 def load_users():
     if os.path.exists(USERS_FILE):
