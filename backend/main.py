@@ -256,41 +256,48 @@ async def generate_quiz(request: QuizRequest):
     if not request.topic or not request.topic.strip():
         raise HTTPException(status_code=400, detail="Topic cannot be empty")
 
-    system_prompt = get_system_prompt(request.subject) + "\n\n" + QUIZ_PROMPT
-    messages = [{"role": "system", "content": system_prompt}]
-    messages.append({"role": "user", "content": f"Generate 10 MCQs on topic: {request.topic} for {request.subject}"})
+    system_prompt = QUIZ_PROMPT  # ❗ REMOVE subject prompt (important)
+    
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"Generate 10 MCQs on topic: {request.topic} for {request.subject}"}
+    ]
 
     try:
         response = await client.chat.completions.create(
             model=GROQ_MODEL,
             messages=messages,
-            temperature=0.8,
-            max_tokens=4000,
+            temperature=0.7,
+            max_tokens=3000,
         )
 
-        result_text = response.choices[0].message.content
-        
+        result_text = response.choices[0].message.content.strip()
+
+        # 🔥 CLEAN RESPONSE PROPERLY
+        if "```" in result_text:
+            result_text = result_text.split("```")[1]
+            if result_text.startswith("json"):
+                result_text = result_text[4:]
         result_text = result_text.strip()
-        if result_text.startswith("```json"):
-            result_text = result_text[7:]
-        if result_text.startswith("```"):
-            result_text = result_text[3:]
-        if result_text.endswith("```"):
-            result_text = result_text[:-3]
-        result_text = result_text.strip()
-        
-        quiz_data = json.loads(result_text)
-        
+
+        # 🔥 SAFE PARSE
+        try:
+            quiz_data = json.loads(result_text)
+        except Exception:
+            return {
+                "error": "Invalid JSON from AI",
+                "raw_response": result_text
+            }
+
         return {
             "quiz": {
                 "questions": quiz_data.get("questions", [])
             }
         }
 
-    except json.JSONDecodeError as e:
-        raise HTTPException(status_code=500, detail=f"Failed to parse quiz: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+ 
 
 if __name__ == "__main__":
     import uvicorn
